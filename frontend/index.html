@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Coaching Centre Management System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- REAL-TIME COMMUNICATION LIBRARY -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    
+<style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #e2e8f0; }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); display: none; justify-content: center; align-items: center; z-index: 100; backdrop-filter: blur(5px); }
+        .modal-content { background-color: #1e293b; padding: 1.5rem; border-radius: 1rem; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5); width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; animation: slide-in 0.3s ease-out; border: 1px solid #334155; }
+        @keyframes slide-in { from { transform: translateY(-30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .dashboard-grid { display: grid; grid-template-columns: 1fr; min-height: 100vh; }
+        @media (min-width: 768px) { .dashboard-grid { grid-template-columns: 280px 1fr; } }
+        .sidebar { background-color: #1e293b; padding: 1rem; }
+        .content-area { padding: 1rem; overflow-y: auto; }
+        @media (min-width: 768px) { .sidebar { padding: 2rem; } .content-area { padding: 2rem; } }
+        .btn { padding: 0.6rem 1.2rem; border-radius: 0.5rem; font-weight: 600; transition: all 0.2s ease-in-out; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; }
+        .btn-primary { background-color: #4f46e5; color: white; } .btn-primary:hover { background-color: #4338ca; }
+        .btn-secondary { background-color: #334155; color: white; } .btn-secondary:hover { background-color: #475569; }
+        .btn-danger { background-color: #dc2626; color: white; } .btn-danger:hover { background-color: #b91c1c; }
+        .btn-whatsapp { background-color: #25D366; color: white; } .btn-whatsapp:hover { background-color: #1DAE53; }
+        .responsive-table { width: 100%; border-collapse: collapse; } .responsive-table thead { display: none; }
+        .responsive-table tr { display: block; margin-bottom: 1rem; border-radius: 0.5rem; background-color: #334155; padding: 1rem; }
+        .responsive-table td { display: block; text-align: right; position: relative; padding-left: 50%; border-bottom: 1px solid #475569; margin-bottom: 0.5rem; }
+        .responsive-table td:last-child { border-bottom: none; margin-bottom: 0; }
+        .responsive-table td::before { content: attr(data-label); position: absolute; left: 0; width: 45%; padding-left: 1rem; font-weight: 600; text-align: left; color: #94a3b8; }
+        @media (min-width: 768px) { .responsive-table thead { display: table-header-group; } .responsive-table tr { display: table-row; margin-bottom: 0; border-radius: 0; background: none; padding: 0; } .responsive-table td { display: table-cell; text-align: left; padding-left: 1.5rem; padding: 1rem; border-bottom: 1px solid #334155;} .responsive-table td::before { display: none; } }
+        .chat-window { height: 60vh; display: flex; flex-direction: column; gap: 1rem; overflow-y: auto; padding: 1rem; background-color: #0f172a; border-radius: 0.5rem; }
+        .chat-bubble { padding: 0.75rem 1rem; border-radius: 1rem; max-width: 80%; line-height: 1.5; }
+        .chat-bubble.user { background-color: #4f46e5; color: white; align-self: flex-end; border-bottom-right-radius: 0.25rem; }
+        .chat-bubble.assistant { background-color: #334155; color: #e2e8f0; align-self: flex-start; border-bottom-left-radius: 0.25rem; }
+    </style>
+</head>
+<body>
+
+    <!-- UI Elements (HTML structure is the same as your original file) -->
+    <div class="fixed inset-0 -z-10 h-full w-full bg-slate-950"><div class="absolute bottom-0 left-0 right-0 top-0 bg-[linear-gradient(to_right,#4f4f4f2e_1px,transparent_1px),linear-gradient(to_bottom,#4f4f4f2e_1px,transparent_1px)] bg-[size:14px_24px]"></div><div class="absolute left-0 right-0 top-[-10%] h-[1000px] w-[1000px] rounded-full bg-[radial-gradient(circle_400px_at_50%_300px,#fbfbfb36,#0f172a)]"></div></div>
+    <div id="loginPage" class="min-h-screen flex items-center justify-center p-4">
+        <div class="w-full max-w-md bg-slate-800/80 backdrop-blur-sm p-8 rounded-2xl shadow-2xl border border-slate-700">
+            <h1 class="text-3xl font-bold text-center text-white mb-6">Coaching Centre Portal</h1>
+            <div class="space-y-4">
+                <select id="userTypeSelect" class="w-full bg-slate-700 p-3 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"><option value="student">Student</option><option value="teacher">Teacher</option><option value="parent">Parent</option></select>
+                <div id="teacherLoginFields" class="hidden space-y-4"><input type="password" id="teacherPinInput" class="w-full bg-slate-700 p-3 rounded-lg" placeholder="Teacher PIN"><button id="teacherLoginBtn" class="btn btn-primary w-full">Login as Teacher</button></div>
+                <div id="studentLoginFields" class="space-y-4"><input type="text" id="studentRollInput" class="w-full bg-slate-700 p-3 rounded-lg" placeholder="Student Roll Number (e.g., 12A-01)"><button id="studentLoginBtn" class="btn btn-primary w-full">Login as Student</button></div>
+                <div id="parentLoginFields" class="hidden space-y-4"><input type="text" id="parentRollInput" class="w-full bg-slate-700 p-3 rounded-lg" placeholder="Child's Roll Number"><button id="parentLoginBtn" class="btn btn-primary w-full">Login as Parent</button></div>
+            </div>
+        </div>
+    </div>
+    <div id="teacherDashboard" class="dashboard-grid hidden"></div><div id="studentDashboard" class="dashboard-grid hidden"></div><div id="parentDashboard" class="dashboard-grid hidden"></div>
+    <div id="notificationModal" class="modal-overlay"><div class="modal-content text-center"><p id="notificationText" class="text-lg mb-6"></p><button id="notificationCloseBtn" class="btn btn-primary">Close</button></div></div>
+    <div id="confirmationModal" class="modal-overlay"><div class="modal-content text-center"><p id="confirmationText" class="text-lg mb-6"></p><div class="flex justify-center gap-4"><button id="confirmCancelBtn" class="btn btn-secondary">Cancel</button><button id="confirmActionBtn" class="btn btn-danger">Confirm</button></div></div></div>
+    <div id="reportModal" class="modal-overlay"><div class="modal-content"><h2 class="text-2xl font-bold mb-4">Student Performance Report</h2><div id="reportContentContainer" class="bg-slate-900 p-4 rounded-lg max-h-[60vh] overflow-y-auto text-slate-300 space-y-4"><div id="reportContent"></div></div><div class="flex flex-wrap justify-end gap-2 mt-4"><button id="reportCloseBtn" class="btn btn-secondary">Close</button><button id="downloadPdfBtn" class="btn btn-primary"><i class="fas fa-file-pdf"></i> Download PDF</button><button id="sendReportWhatsAppBtn" class="btn btn-whatsapp"><i class="fab fa-whatsapp"></i> Send via WhatsApp</button></div></div></div>
+    <div id="aiAssistantModal" class="modal-overlay"><div class="modal-content"><h2 id="aiModalTitle" class="text-2xl font-bold mb-4">AI Assistant</h2><div id="aiChatWindow" class="chat-window mb-4"></div><div class="flex gap-2"><input type="text" id="aiChatInput" class="flex-grow bg-slate-900 text-white p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Ask a question..."><button id="sendAiChatBtn" class="btn btn-primary">Send</button></div><div class="flex justify-end mt-4"><button id="aiAssistantCloseBtn" class="btn btn-secondary">Close</button></div></div></div>
+    <div id="editPerformanceModal" class="modal-overlay"><div class="modal-content"><h2 class="text-2xl font-bold mb-4">Edit Student Performance</h2><p id="editStudentName" class="text-lg font-semibold mb-4"></p><div id="editPerformanceForm" class="space-y-4"></div><div class="flex justify-end space-x-2 mt-6"><button id="editCancelBtn" class="btn btn-secondary">Cancel</button><button id="editSaveBtn" class="btn btn-primary">Save</button></div></div></div>
+    <div id="editStudentDetailsModal" class="modal-overlay"><div class="modal-content"><h2 class="text-2xl font-bold mb-4">Edit Student Details</h2><div class="space-y-4"><div><label class="block text-slate-400">Name</label><input type="text" id="editDetailName" class="w-full bg-slate-700 p-2 rounded-lg"></div><div><label class="block text-slate-400">Roll Number</label><input type="text" id="editDetailRoll" class="w-full bg-slate-700 p-2 rounded-lg" readonly></div><div><label class="block text-slate-400">Parent's Phone</label><input type="text" id="editDetailParentPhone" class="w-full bg-slate-700 p-2 rounded-lg"></div></div><div class="flex justify-end space-x-2 mt-6"><button id="editDetailCancelBtn" class="btn btn-secondary">Cancel</button><button id="editDetailSaveBtn" class="btn btn-primary">Save Changes</button></div></div></div>
+    <div id="addStudentModal" class="modal-overlay"><div class="modal-content"><h2 class="text-2xl font-bold mb-4">Add New Student</h2><div class="space-y-4"><div><label class="block text-slate-400">Full Name</label><input type="text" id="addStudentName" class="w-full bg-slate-700 p-2 rounded-lg"></div><div><label class="block text-slate-400">Batch</label><select id="addStudentSection" class="w-full bg-slate-700 p-2 rounded-lg"><option value="12A">12A</option><option value="12B">12B</option></select></div><div><label class="block text-slate-400">Parent's Phone (e.g., 91...)</label><input type="text" id="addStudentParentPhone" class="w-full bg-slate-700 p-2 rounded-lg"></div></div><div class="flex justify-end space-x-2 mt-6"><button onclick="hideModal(document.getElementById('addStudentModal'))" class="btn btn-secondary">Cancel</button><button onclick="addStudent()" class="btn btn-primary">Add Student</button></div></div></div>
+
+    <script>
+        // --- CONFIGURATION ---
+        const API_URL = 'http://localhost:5000'; // IMPORTANT: Change this to your deployed backend URL when publishing
+
+        // --- BACKEND CONNECTION ---
+        const socket = io(API_URL);
+
+        socket.on('connect', () => {
+            console.log('Connected to real-time server!');
+        });
+
+        socket.on('new-announcement', (announcement) => {
+            showNotification(`New Announcement: ${announcement.text}`);
+            const announcementsTitle = document.getElementById('teacherSectionTitle') || document.getElementById('studentSectionTitle') || document.getElementById('parentSectionTitle');
+            if (announcementsTitle && (announcementsTitle.innerText === 'Post Announcements' || announcementsTitle.innerText === 'Announcements')) {
+                if(loggedInUserType === 'teacher') showTeacherSection('announcements');
+                if(loggedInUserType === 'student') showStudentSection('announcements');
+                if(loggedInUserType === 'parent') showParentSection('announcements');
+            }
+        });
+
+        // --- GLOBAL STATE ---
+        let loggedInUserType = null;
+        let loggedInEntity = null;
+        let activeSection = null;
+        let studentToEdit = null;
+        let allTeachers = [];
+
+        // --- DOM ELEMENTS ---
+        const loginPage = document.getElementById('loginPage');
+        const teacherDashboard = document.getElementById('teacherDashboard');
+        const studentDashboard = document.getElementById('studentDashboard');
+        const parentDashboard = document.getElementById('parentDashboard');
+        const notificationModal = document.getElementById('notificationModal');
+        const confirmationModal = document.getElementById('confirmationModal');
+        const reportModal = document.getElementById('reportModal');
+        const aiAssistantModal = document.getElementById('aiAssistantModal');
+        const editPerformanceModal = document.getElementById('editPerformanceModal');
+        const editStudentDetailsModal = document.getElementById('editStudentDetailsModal');
+        const addStudentModal = document.getElementById('addStudentModal');
+
+        // --- UTILITY & HELPER FUNCTIONS ---
+        const showModal = (modal) => modal.style.display = 'flex';
+        const hideModal = (modal) => modal.style.display = 'none';
+        
+        const showNotification = (message) => {
+            document.getElementById('notificationText').innerText = message;
+            showModal(notificationModal);
+        };
+        
+        const showConfirmation = (message, onConfirm) => {
+            document.getElementById('confirmationText').innerText = message;
+            const confirmBtn = document.getElementById('confirmActionBtn');
+            const newConfirmBtn = confirmBtn.cloneNode(true);
+            confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+            newConfirmBtn.onclick = () => { onConfirm(); hideModal(confirmationModal); };
+            document.getElementById('confirmCancelBtn').onclick = () => hideModal(confirmationModal);
+            showModal(confirmationModal);
+        };
+
+        async function apiRequest(endpoint, method = 'GET', body = null) {
+            try {
+                const options = { method, headers: { 'Content-Type': 'application/json' } };
+                if (body) options.body = JSON.stringify(body);
+                const response = await fetch(`${API_URL}/api${endpoint}`, options);
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message || `HTTP error! status: ${response.status}`);
+                return data;
+            } catch (error) {
+                console.error(`API request failed for ${method} ${endpoint}:`, error);
+                showNotification(`Error: ${error.message}. Is the backend server running?`);
+                throw error;
+            }
+        }
+
+        // --- LOGIN LOGIC ---
+        document.getElementById('userTypeSelect').addEventListener('change', (e) => {
+            ['teacherLoginFields', 'studentLoginFields', 'parentLoginFields'].forEach(id => document.getElementById(id).classList.add('hidden'));
+            document.getElementById(`${e.target.value}LoginFields`).classList.remove('hidden');
+        });
+
+        document.getElementById('teacherLoginBtn').addEventListener('click', async () => {
+            const pin = document.getElementById('teacherPinInput').value;
+            try {
+                const result = await apiRequest('/auth/teacher', 'POST', { pin });
+                loggedInUserType = 'teacher';
+                loggedInEntity = result.teacher;
+                activeSection = result.section;
+                loginPage.classList.add('hidden');
+                await renderTeacherDashboard();
+                teacherDashboard.classList.remove('hidden');
+            } catch (error) { /* Handled by apiRequest */ }
+        });
+
+        const handleStudentParentLogin = async (roll, userType) => {
+            if (!roll) return showNotification('Please enter a roll number.');
+            try {
+                const result = await apiRequest('/auth/student-parent', 'POST', { roll });
+                loggedInUserType = userType;
+                loggedInEntity = result.student;
+                activeSection = result.section;
+                loginPage.classList.add('hidden');
+                if (userType === 'student') {
+                    await renderStudentDashboard();
+                    studentDashboard.classList.remove('hidden');
+                } else {
+                    await renderParentDashboard();
+                    parentDashboard.classList.remove('hidden');
+                }
+            } catch (error) { /* Handled by apiRequest */ }
+        };
+
+        document.getElementById('studentLoginBtn').addEventListener('click', () => handleStudentParentLogin(document.getElementById('studentRollInput').value, 'student'));
+        document.getElementById('parentLoginBtn').addEventListener('click', () => handleStudentParentLogin(document.getElementById('parentRollInput').value, 'parent'));
+
+        const logout = () => {
+            loggedInUserType = null;
+            loggedInEntity = null;
+            activeSection = null;
+            allTeachers = [];
+            [teacherDashboard, studentDashboard, parentDashboard].forEach(d => d.classList.add('hidden'));
+            loginPage.classList.remove('hidden');
+        };
+
+        // --- RENDER FUNCTIONS (COMMON) ---
+        const renderSidebar = (user, sections) => {
+            let welcome = '';
+            if (user.type === 'teacher') welcome = `Welcome, ${user.entity.name}`;
+            if (user.type === 'student') welcome = `Hello, ${user.entity.name}`;
+            if (user.type === 'parent') welcome = `For ${user.entity.name}`;
+            return `<div class="sidebar flex flex-col h-full"><div><h2 class="text-2xl font-bold text-white">${user.title}</h2><p class="text-slate-400 mb-6">${welcome}</p></div><nav class="flex-grow space-y-2">${sections.map(s => `<button class="w-full text-left p-3 rounded-lg hover:bg-slate-700 transition sidebar-btn" data-section="${s.id}">${s.icon} ${s.name}</button>`).join('')}</nav><div><button onclick="logout()" class="w-full text-left p-3 rounded-lg hover:bg-red-500/20 text-red-400 transition"><i class="fas fa-sign-out-alt fa-fw mr-2"></i>Logout</button></div></div>`;
+        };
+        const renderContentArea = (user) => `<div class="content-area"><div class="flex justify-between items-center mb-6"><h1 id="${user.type}SectionTitle" class="text-3xl font-bold text-white"></h1><div id="${user.type}HeaderControls"></div></div><div id="${user.type}Content" class="space-y-6"></div></div>`;
+        const renderLoadingSpinner = (el) => { el.innerHTML = `<div class="text-center p-8"><i class="fas fa-spinner fa-spin text-4xl text-indigo-400"></i></div>`; };
+
+        // --- TEACHER DASHBOARD ---
+        const renderTeacherDashboard = async () => {
+            const user = { type: 'teacher', title: 'Teacher Dashboard', entity: loggedInEntity };
+            let sections = [
+                { id: 'details', name: 'Student Details', icon: '<i class="fas fa-user-edit fa-fw mr-2"></i>' },
+                { id: 'performance', name: 'Performance', icon: '<i class="fas fa-chart-line fa-fw mr-2"></i>' },
+                { id: 'attendance', name: 'Attendance', icon: '<i class="fas fa-user-check fa-fw mr-2"></i>' },
+                { id: 'fees', name: 'Fees', icon: '<i class="fas fa-dollar-sign fa-fw mr-2"></i>' },
+                { id: 'materials', name: 'Materials', icon: '<i class="fas fa-book fa-fw mr-2"></i>' },
+                { id: 'timetable', name: 'Timetable', icon: '<i class="fas fa-calendar-alt fa-fw mr-2"></i>' },
+                { id: 'announcements', name: 'Announcements', icon: '<i class="fas fa-bullhorn fa-fw mr-2"></i>' },
+            ];
+            if (!loggedInEntity.isFeeManager) sections = sections.filter(sec => sec.id !== 'fees');
+            teacherDashboard.innerHTML = renderSidebar(user, sections) + renderContentArea(user);
+            attachSidebarListeners('teacher');
+            await showTeacherSection('details');
+        };
+
+        const showTeacherSection = async (sectionId) => {
+            document.querySelectorAll('#teacherDashboard .sidebar-btn').forEach(btn => btn.classList.remove('bg-slate-700'));
+            document.querySelector(`#teacherDashboard [data-section="${sectionId}"]`).classList.add('bg-slate-700');
+            const titleEl = document.getElementById('teacherSectionTitle');
+            const contentEl = document.getElementById('teacherContent');
+            renderLoadingSpinner(contentEl);
+            if (allTeachers.length === 0) allTeachers = await apiRequest(`/teachers/${activeSection}`);
+            switch(sectionId) {
+                case 'details': titleEl.innerText = 'Student Details'; await renderStudentDetailsTable(); break;
+                case 'performance': titleEl.innerText = 'Student Performance'; await renderPerformanceTable(); break;
+                case 'attendance': titleEl.innerText = 'Mark Attendance'; await renderAttendanceTable(); break;
+                case 'fees': if (loggedInEntity.isFeeManager) { titleEl.innerText = 'Manage Fees'; await renderFeesTable(); } break;
+                case 'materials': titleEl.innerText = 'Class Materials'; await renderMaterialsManager(); break;
+                case 'timetable': titleEl.innerText = 'Class Timetable'; await renderTimetableManager(); break;
+                case 'announcements': titleEl.innerText = 'Post Announcements'; await renderAnnouncementsManager(); break;
+            }
+        };
+
+        const renderStudentDetailsTable = async () => {
+            const contentEl = document.getElementById('teacherContent');
+            try {
+                const students = await apiRequest(`/students/${activeSection}`);
+                contentEl.innerHTML = `<div class="mb-4"><button onclick="showModal(addStudentModal)" class="btn btn-primary"><i class="fas fa-user-plus"></i> Add New Student</button></div><div class="overflow-x-auto bg-slate-800 p-4 rounded-lg"><table class="responsive-table"><thead><tr><th>Name</th><th>Roll No</th><th>Parent's Phone</th><th>Actions</th></tr></thead><tbody>${students.map(s => `<tr><td data-label="Name">${s.name}</td><td data-label="Roll No">${s.roll}</td><td data-label="Parent's Phone">${s.parentPhone}</td><td data-label="Actions" class="space-x-2"><button onclick="openStudentDetailsEdit('${s.roll}')" class="btn btn-secondary text-sm"><i class="fas fa-user-edit"></i></button><button onclick="deleteStudent('${s.roll}')" class="btn btn-danger text-sm"><i class="fas fa-trash"></i></button></td></tr>`).join('') || `<tr><td colspan="4" class="text-center p-4">No students found in this batch.</td></tr>`}</tbody></table></div>`;
+            } catch (error) { contentEl.innerHTML = `<p class="text-red-400">Could not load student details.</p>`; }
+        };
+        
+        const renderPerformanceTable = async () => {
+            const contentEl = document.getElementById('teacherContent');
+            try {
+                const students = await apiRequest(`/students/${activeSection}`);
+                contentEl.innerHTML = `<div class="overflow-x-auto bg-slate-800 p-4 rounded-lg"><table class="responsive-table"><thead><tr><th>Name</th><th>Roll No</th><th>Performance</th><th>Actions</th></tr></thead><tbody>${students.map(s => `<tr><td data-label="Name">${s.name}</td><td data-label="Roll No">${s.roll}</td><td data-label="Performance"><ul class="list-disc list-inside">${Object.entries(s.performance || {}).map(([teacherId, scores]) => { const teacher = allTeachers.find(t => t.id === teacherId); return Object.entries(scores).map(([subject, score]) => `<li>${subject} (${teacher ? teacher.name.split(' ')[0] : 'N/A'}): ${score}</li>`).join(''); }).join('')}</ul></td><td data-label="Actions" class="space-x-2"><button onclick="openPerformanceEdit('${s.roll}')" class="btn btn-secondary text-sm"><i class="fas fa-edit"></i></button><button onclick="openPerformanceReport('${s.roll}')" class="btn btn-secondary text-sm"><i class="fas fa-file-alt"></i></button></td></tr>`).join('')}</tbody></table></div>`;
+            } catch (error) { contentEl.innerHTML = `<p class="text-red-400">Could not load performance data.</p>`; }
+        };
+
+        const renderAttendanceTable = async () => {
+            const contentEl = document.getElementById('teacherContent');
+            try {
+                const students = await apiRequest(`/students/${activeSection}`);
+                contentEl.innerHTML = `<div class="overflow-x-auto bg-slate-800 p-4 rounded-lg"><p class="text-slate-400 mb-4">You are marking attendance for your subject: ${loggedInEntity.subject}</p><table class="responsive-table"><thead><tr><th>Name</th><th>Roll No</th><th>Status Today</th><th>Actions</th></tr></thead><tbody>${students.map(s => { const attendanceHistory = (s.attendance || {})[loggedInEntity.id] || []; const todayStatus = attendanceHistory[0] || 'N/A'; const statusClass = todayStatus === 'P' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'; return `<tr><td data-label="Name">${s.name}</td><td data-label="Roll No">${s.roll}</td><td data-label="Status"><span class="px-2 py-1 rounded-full text-xs font-semibold ${statusClass}">${todayStatus}</span></td><td data-label="Actions" class="space-x-2"><button onclick="markAttendance('${s.roll}', 'P')" class="btn btn-secondary text-sm ${todayStatus === 'P' ? 'bg-green-500' : ''}">P</button><button onclick="markAttendance('${s.roll}', 'A')" class="btn btn-secondary text-sm ${todayStatus === 'A' ? 'bg-red-500' : ''}">A</button></td></tr>` }).join('')}</tbody></table></div>`;
+            } catch (error) { contentEl.innerHTML = `<p class="text-red-400">Could not load attendance data.</p>`; }
+        };
+
+        const renderFeesTable = async () => {
+            const contentEl = document.getElementById('teacherContent');
+            try {
+                const students = await apiRequest(`/students/${activeSection}`);
+                contentEl.innerHTML = `<div class="overflow-x-auto bg-slate-800 p-4 rounded-lg"><table class="responsive-table"><thead><tr><th>Name</th><th>Status</th><th>Actions</th></tr></thead><tbody>${students.map(s => `<tr><td data-label="Name">${s.name}</td><td data-label="Status"><span class="px-2 py-1 rounded-full text-xs font-semibold ${s.fees === 'paid' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}">${s.fees}</span></td><td data-label="Actions" class="space-x-2"><button onclick="updateFeeStatus('${s.roll}', 'paid')" class="btn btn-secondary text-sm">Paid</button><button onclick="updateFeeStatus('${s.roll}', 'due')" class="btn btn-secondary text-sm">Due</button></td></tr>`).join('')}</tbody></table></div>`;
+            } catch (error) { contentEl.innerHTML = `<p class="text-red-400">Could not load fee data.</p>`; }
+        };
+
+        const renderMaterialsManager = async () => {
+            const contentEl = document.getElementById('teacherContent');
+            try {
+                const materials = await apiRequest(`/materials/${activeSection}`);
+                contentEl.innerHTML = `<div class="bg-slate-800 p-4 rounded-lg space-y-4"><div><input id="materialTitle" class="w-full bg-slate-700 p-2 rounded-lg mb-2" placeholder="Material Title"><input id="materialLink" class="w-full bg-slate-700 p-2 rounded-lg mb-2" placeholder="Paste a Link"><button onclick="addMaterial()" class="btn btn-primary mt-4">Add Material</button></div><h3 class="text-xl font-bold border-t border-slate-700 pt-4">Posted Materials</h3><ul class="space-y-2">${materials.length > 0 ? materials.map(m => `<li class="flex justify-between items-center bg-slate-700 p-3 rounded-lg"><a href="${m.link}" target="_blank" class="text-indigo-400 hover:underline">${m.title}</a><button onclick="deleteMaterial('${m._id}')" class="text-red-400 hover:text-red-600"><i class="fas fa-trash"></i></button></li>`).join('') : '<p class="text-slate-500">No materials posted yet.</p>'}</ul></div>`;
+            } catch (error) { contentEl.innerHTML = `<p class="text-red-400">Could not load materials.</p>`; }
+        };
+
+        const renderTimetableManager = async () => {
+            const contentEl = document.getElementById('teacherContent');
+            try {
+                const timetable = await apiRequest(`/timetables/${activeSection}`);
+                contentEl.innerHTML = `<div class="bg-slate-800 p-4 rounded-lg space-y-4"><div class="grid grid-cols-1 md:grid-cols-3 gap-2"><input id="ttDay" class="bg-slate-700 p-2 rounded-lg" placeholder="Day (e.g., Monday)"><input id="ttTime" class="bg-slate-700 p-2 rounded-lg" placeholder="Time (e.g., 9:00 AM)"><input id="ttSubject" class="bg-slate-700 p-2 rounded-lg" placeholder="Subject"></div><button onclick="addTimetableEntry()" class="btn btn-primary">Add Entry</button><h3 class="text-xl font-bold border-t border-slate-700 pt-4">Class Timetable</h3><div class="overflow-x-auto"><table class="w-full"><tbody>${timetable.length > 0 ? timetable.map(t => `<tr class="border-b border-slate-700"><td class="p-2 font-bold">${t.day}</td><td class="p-2">${t.time}</td><td class="p-2">${t.subject}</td><td class="p-2 text-right"><button onclick="deleteTimetableEntry('${t._id}')" class="text-red-400 hover:text-red-600"><i class="fas fa-trash"></i></button></td></tr>`).join('') : '<tr><td class="p-2 text-slate-500">No timetable posted yet.</td></tr>'}</tbody></table></div></div>`;
+            } catch (error) { contentEl.innerHTML = `<p class="text-red-400">Could not load timetable.</p>`; }
+        };
+
+        const renderAnnouncementsManager = async () => {
+            const contentEl = document.getElementById('teacherContent');
+            try {
+                const announcements = await apiRequest(`/announcements/${activeSection}`);
+                contentEl.innerHTML = `<div class="bg-slate-800 p-4 rounded-lg space-y-4"><div><textarea id="announcementText" class="w-full bg-slate-700 p-2 rounded-lg" placeholder="Write your announcement..."></textarea><button onclick="postAnnouncement('${activeSection}')" class="btn btn-primary mt-2">Post to ${activeSection}</button><button onclick="postAnnouncement('all')" class="btn btn-secondary mt-2">Post to All Batches</button></div><h3 class="text-xl font-bold border-t border-slate-700 pt-4">Recent Announcements</h3><ul class="space-y-3">${announcements.length > 0 ? announcements.map(a => `<li class="bg-slate-700 p-3 rounded-lg"><p class="text-sm text-slate-400">To: ${a.section} on ${new Date(a.date).toLocaleDateString()}</p><p>${a.text}</p></li>`).join('') : '<p class="text-slate-500">No announcements posted yet.</p>'}</ul></div>`;
+            } catch (error) { contentEl.innerHTML = `<p class="text-red-400">Could not load announcements.</p>`; }
+        };
+
+        // --- TEACHER ACTIONS ---
+        const addStudent = async () => {
+            const name = document.getElementById('addStudentName').value.trim();
+            const section = document.getElementById('addStudentSection').value;
+            const parentPhone = document.getElementById('addStudentParentPhone').value.trim();
+            if (!name || !section || !parentPhone) return showNotification("Please fill out all fields.");
+            try {
+                const newStudent = await apiRequest('/students', 'POST', { name, section, parentPhone });
+                hideModal(addStudentModal);
+                await showTeacherSection('details');
+                showNotification(`Student ${name} added successfully with Roll No: ${newStudent.roll}`);
+            } catch (error) { /* Handled */ }
+        };
+
+        const deleteStudent = (roll) => {
+            showConfirmation(`Are you sure you want to remove student ${roll}?`, async () => {
+                try {
+                    await apiRequest(`/students/${roll}`, 'DELETE');
+                    await showTeacherSection('details');
+                    showNotification(`Student ${roll} has been removed.`);
+                } catch (error) { /* Handled */ }
+            });
+        };
+
+        const openStudentDetailsEdit = async (roll) => {
+            try {
+                const students = await apiRequest(`/students/${activeSection}`);
+                studentToEdit = students.find(s => s.roll === roll);
+                if (!studentToEdit) return showNotification('Student not found.');
+                document.getElementById('editDetailName').value = studentToEdit.name;
+                document.getElementById('editDetailRoll').value = studentToEdit.roll;
+                document.getElementById('editDetailParentPhone').value = studentToEdit.parentPhone;
+                showModal(editStudentDetailsModal);
+            } catch (error) { /* Handled */ }
+        };
+
+        const saveStudentDetails = async () => {
+            if (!studentToEdit) return;
+            const name = document.getElementById('editDetailName').value.trim();
+            const parentPhone = document.getElementById('editDetailParentPhone').value.trim();
+            try {
+                await apiRequest(`/students/${studentToEdit.roll}`, 'PUT', { name, parentPhone });
+                hideModal(editStudentDetailsModal);
+                await showTeacherSection('details');
+                showNotification("Student details updated successfully!");
+            } catch (error) { /* Handled */ }
+        };
+
+        const markAttendance = async (roll, status) => {
+            try {
+                await apiRequest(`/students/${roll}/attendance`, 'POST', { teacherId: loggedInEntity.id, status });
+                await showTeacherSection('attendance');
+            } catch (error) { /* Handled */ }
+        };
+
+        const updateFeeStatus = async (roll, status) => {
+            try {
+                await apiRequest(`/students/${roll}/fees`, 'PUT', { status });
+                await showTeacherSection('fees');
+                showNotification(`Fee status updated for ${roll}.`);
+            } catch (error) { /* Handled */ }
+        };
+
+        const addMaterial = async () => {
+            const title = document.getElementById('materialTitle').value.trim();
+            const link = document.getElementById('materialLink').value.trim();
+            if (!title || !link) return showNotification("Please provide a title and a link.");
+            try {
+                await apiRequest('/materials', 'POST', { title, link, section: activeSection });
+                await showTeacherSection('materials');
+                showNotification("Material added.");
+            } catch (error) { /* Handled */ }
+        };
+
+        const deleteMaterial = async (id) => {
+            try {
+                await apiRequest(`/materials/${id}`, 'DELETE');
+                await showTeacherSection('materials');
+            } catch (error) { /* Handled */ }
+        };
+
+        const addTimetableEntry = async () => {
+            const day = document.getElementById('ttDay').value.trim();
+            const time = document.getElementById('ttTime').value.trim();
+            const subject = document.getElementById('ttSubject').value.trim();
+            if (!day || !time || !subject) return showNotification("Please fill all timetable fields.");
+            try {
+                await apiRequest('/timetables', 'POST', { day, time, subject, section: activeSection });
+                await showTeacherSection('timetable');
+            } catch (error) { /* Handled */ }
+        };
+
+        const deleteTimetableEntry = async (id) => {
+            try {
+                await apiRequest(`/timetables/${id}`, 'DELETE');
+                await showTeacherSection('timetable');
+            } catch (error) { /* Handled */ }
+        };
+
+        const postAnnouncement = async (targetSection) => {
+            const text = document.getElementById('announcementText').value.trim();
+            if (!text) return showNotification("Please write an announcement.");
+            try {
+                await apiRequest('/announcements', 'POST', { text, section: targetSection });
+                document.getElementById('announcementText').value = '';
+                await showTeacherSection('announcements');
+                showNotification("Announcement posted!");
+            } catch (error) { /* Handled */ }
+        };
+
+        const openPerformanceEdit = async (roll) => {
+            try {
+                const students = await apiRequest(`/students/${activeSection}`);
+                studentToEdit = students.find(s => s.roll === roll);
+                if (!studentToEdit) return showNotification('Student not found.');
+                
+                const form = document.getElementById('editPerformanceForm');
+                document.getElementById('editStudentName').innerText = `Editing: ${studentToEdit.name}`;
+                
+                form.innerHTML = allTeachers.map(teacher => `
+                    <div>
+                        <label class="block text-slate-400">${teacher.subject} (${teacher.name})</label>
+                        <input type="number" class="w-full bg-slate-700 p-2 rounded-lg" value="${((studentToEdit.performance || {})[teacher.id] || {})[teacher.subject.toLowerCase()] || 0}" data-teacher="${teacher.id}" data-subject="${teacher.subject.toLowerCase()}">
+                    </div>
+                `).join('');
+                showModal(editPerformanceModal);
+            } catch (error) { /* Handled */ }
+        };
+
+        const savePerformance = async () => {
+            if (!studentToEdit) return;
+            let performance = studentToEdit.performance || {};
+            document.querySelectorAll('#editPerformanceForm input').forEach(input => {
+                const teacherId = input.dataset.teacher;
+                const subject = input.dataset.subject;
+                if (!performance[teacherId]) performance[teacherId] = {};
+                performance[teacherId][subject] = parseInt(input.value) || 0;
+            });
+            try {
+                await apiRequest(`/students/${studentToEdit.roll}/performance`, 'PUT', { performance });
+                hideModal(editPerformanceModal);
+                await showTeacherSection('performance');
+                showNotification("Performance updated!");
+            } catch (error) { /* Handled */ }
+        };
+
+        // --- STUDENT & PARENT DASHBOARDS ---
+        const renderStudentDashboard = async () => {
+            const user = { type: 'student', title: 'Student Dashboard', entity: loggedInEntity };
+            const sections = [ { id: 'performance', name: 'My Performance', icon: '<i class="fas fa-chart-pie fa-fw mr-2"></i>' }, { id: 'attendance', name: 'My Attendance', icon: '<i class="fas fa-calendar-check fa-fw mr-2"></i>' }, { id: 'pay_fees', name: 'Pay Fees', icon: '<i class="fas fa-qrcode fa-fw mr-2"></i>' }, { id: 'materials', name: 'Class Materials', icon: '<i class="fas fa-book-open fa-fw mr-2"></i>' }, { id: 'timetable', name: 'Class Timetable', icon: '<i class="fas fa-clock fa-fw mr-2"></i>' }, { id: 'announcements', name: 'Announcements', icon: '<i class="fas fa-bell fa-fw mr-2"></i>' }, { id: 'teachers', name: 'My Teachers', icon: '<i class="fas fa-chalkboard-teacher fa-fw mr-2"></i>' } ];
+            studentDashboard.innerHTML = renderSidebar(user, sections) + renderContentArea(user);
+            attachSidebarListeners('student');
+            await showStudentSection('performance');
+        };
+
+        const showStudentSection = async (sectionId) => {
+            document.querySelectorAll('#studentDashboard .sidebar-btn').forEach(btn => btn.classList.remove('bg-slate-700'));
+            document.querySelector(`#studentDashboard [data-section="${sectionId}"]`).classList.add('bg-slate-700');
+            const titleEl = document.getElementById('studentSectionTitle');
+            const contentEl = document.getElementById('studentContent');
+            renderLoadingSpinner(contentEl);
+            if (allTeachers.length === 0) allTeachers = await apiRequest(`/teachers/${activeSection}`);
+            switch(sectionId) {
+                case 'performance': titleEl.innerText = 'My Performance'; contentEl.innerHTML = renderStudentPerformance(); break;
+                case 'attendance': titleEl.innerText = 'My Attendance'; contentEl.innerHTML = renderStudentAttendance(); break;
+                case 'pay_fees': titleEl.innerText = 'Pay Fees'; contentEl.innerHTML = renderFeePayment(); break;
+                case 'materials': titleEl.innerText = 'Class Materials'; await renderStudentMaterials(); break;
+                case 'timetable': titleEl.innerText = 'Class Timetable'; await renderStudentTimetable(); break;
+                case 'announcements': titleEl.innerText = 'Announcements'; await renderStudentAnnouncements(); break;
+                case 'teachers': titleEl.innerText = 'My Teachers'; contentEl.innerHTML = renderStudentTeachers(); break;
+            }
+        };
+
+        const renderParentDashboard = async () => {
+             const user = { type: 'parent', title: 'Parent Dashboard', entity: loggedInEntity };
+             const sections = [ { id: 'performance', name: "Child's Performance", icon: '<i class="fas fa-chart-line fa-fw mr-2"></i>' }, { id: 'attendance', name: "Child's Attendance", icon: '<i class="fas fa-user-check fa-fw mr-2"></i>' }, { id: 'pay_fees', name: 'Pay Fees', icon: '<i class="fas fa-qrcode fa-fw mr-2"></i>' }, { id: 'teachers', name: 'Contact Teachers', icon: '<i class="fas fa-chalkboard-teacher fa-fw mr-2"></i>' } ];
+             parentDashboard.innerHTML = renderSidebar(user, sections) + renderContentArea(user);
+             attachSidebarListeners('parent');
+             await showParentSection('performance');
+        };
+
+        const showParentSection = async (sectionId) => {
+            document.querySelectorAll('#parentDashboard .sidebar-btn').forEach(btn => btn.classList.remove('bg-slate-700'));
+            document.querySelector(`#parentDashboard [data-section="${sectionId}"]`).classList.add('bg-slate-700');
+            const titleEl = document.getElementById('parentSectionTitle');
+            const contentEl = document.getElementById('parentContent');
+            renderLoadingSpinner(contentEl);
+            if (allTeachers.length === 0) allTeachers = await apiRequest(`/teachers/${activeSection}`);
+            switch(sectionId) {
+                case 'performance': titleEl.innerText = "Child's Performance"; contentEl.innerHTML = renderStudentPerformance(); break;
+                case 'attendance': titleEl.innerText = "Child's Attendance"; contentEl.innerHTML = renderStudentAttendance(); break;
+                case 'pay_fees': titleEl.innerText = 'Pay Fees'; contentEl.innerHTML = renderFeePayment(); break;
+                case 'teachers': titleEl.innerText = 'Contact Teachers'; contentEl.innerHTML = renderStudentTeachers(); break;
+            }
+        };
+
+        const renderStudentPerformance = () => {
+            const student = loggedInEntity;
+            let totalScore = 0, subjectCount = 0;
+            const individualStats = allTeachers.map(teacher => {
+                const scores = (student.performance || {})[teacher.id];
+                if (!scores) return '';
+                return `<div class="bg-slate-800 p-4 rounded-lg"><h3 class="text-xl font-bold mb-2">${teacher.subject} <span class="text-sm font-normal text-slate-400">(with ${teacher.name})</span></h3>${Object.entries(scores).map(([subject, score]) => { totalScore += score; subjectCount++; return `<p>${subject.charAt(0).toUpperCase() + subject.slice(1)}: <span class="font-bold text-indigo-400">${score}</span></p>` }).join('')}</div>`
+            }).join('');
+            const average = subjectCount > 0 ? (totalScore / subjectCount).toFixed(2) : 'N/A';
+            return `<div class="space-y-4"><div class="bg-slate-800 p-4 rounded-lg"><h3 class="text-2xl font-bold">Overall Average</h3><p class="text-4xl font-bold text-indigo-400">${average}</p></div><h3 class="text-2xl font-bold mt-6">Individual Subject Performance</h3><div class="grid md:grid-cols-2 gap-4">${individualStats}</div></div>`;
+        };
+        
+        const renderStudentAttendance = () => {
+            const student = loggedInEntity;
+            const attendanceByTeacher = allTeachers.map(teacher => {
+                const history = (student.attendance || {})[teacher.id] || [];
+                const present = history.filter(s => s === 'P').length, total = history.length;
+                const percentage = total > 0 ? ((present / total) * 100).toFixed(0) : 'N/A';
+                return `<div class="bg-slate-800 p-4 rounded-lg"><h3 class="text-xl font-bold mb-2">${teacher.subject} <span class="text-sm font-normal text-slate-400">(with ${teacher.name})</span></h3><p>Percentage: <span class="font-bold text-lg ${percentage > 75 ? 'text-green-400' : 'text-yellow-400'}">${percentage}%</span></p><p class="text-sm text-slate-400">Present: ${present}, Absent: ${total - present}</p></div>`;
+            }).join('');
+            return `<div class="grid md:grid-cols-2 gap-4">${attendanceByTeacher}</div>`;
+        };
+
+        const renderStudentTeachers = () => `<div class="grid md:grid-cols-2 gap-4">${allTeachers.map(t => `<div class="bg-slate-800 p-4 rounded-lg"><h3 class="text-xl font-bold">${t.name}</h3><p class="text-indigo-400">${t.subject}</p></div>`).join('')}</div>`;
+        
+        const renderFeePayment = () => `<div class="bg-slate-800 p-6 rounded-lg text-center"><h3 class="text-2xl font-bold mb-4">Pay Your Fees</h3><p class="text-slate-400 mb-6">Scan the QR code with any UPI app.</p><img src="https://placehold.co/256x256/e2e8f0/0f172a?text=QR+Code" alt="Scan to Pay UPI QR Code" class="mx-auto rounded-lg mb-4 border-4 border-slate-700 w-64 h-64 object-contain"><p class="text-lg"><strong>UPI ID:</strong> <span class="font-mono bg-slate-700 px-2 py-1 rounded">your-upi-id@ok</span></p></div>`;
+
+        const renderStudentMaterials = async () => {
+            const contentEl = document.getElementById('studentContent') || document.getElementById('parentContent');
+            try {
+                const materials = await apiRequest(`/materials/${activeSection}`);
+                contentEl.innerHTML = `<div class="bg-slate-800 p-4 rounded-lg"><ul class="space-y-2">${materials.length > 0 ? materials.map(m => `<li class="bg-slate-700 p-3 rounded-lg"><a href="${m.link}" target="_blank" class="text-indigo-400 hover:underline flex items-center justify-between"><span><i class="fas fa-link mr-2"></i>${m.title}</span><i class="fas fa-external-link-alt"></i></a></li>`).join('') : '<p class="text-slate-500">No materials posted yet.</p>'}</ul></div>`;
+            } catch (e) { contentEl.innerHTML = `<p class="text-red-400">Could not load materials.</p>`; }
+        };
+
+        const renderStudentTimetable = async () => {
+            const contentEl = document.getElementById('studentContent') || document.getElementById('parentContent');
+            try {
+                const timetable = await apiRequest(`/timetables/${activeSection}`);
+                contentEl.innerHTML = `<div class="bg-slate-800 p-4 rounded-lg overflow-x-auto"><table class="w-full"><tbody>${timetable.length > 0 ? timetable.map(t => `<tr class="border-b border-slate-700"><td class="p-2 font-bold">${t.day}</td><td class="p-2">${t.time}</td><td class="p-2">${t.subject}</td></tr>`).join('') : '<tr><td class="p-2 text-slate-500">Timetable not available.</td></tr>'}</tbody></table></div>`;
+            } catch (e) { contentEl.innerHTML = `<p class="text-red-400">Could not load timetable.</p>`; }
+        };
+        
+        const renderStudentAnnouncements = async () => {
+            const contentEl = document.getElementById('studentContent') || document.getElementById('parentContent');
+            try {
+                const announcements = await apiRequest(`/announcements/${activeSection}`);
+                contentEl.innerHTML = `<ul class="space-y-3">${announcements.length > 0 ? announcements.map(a => `<li class="bg-slate-800 p-4 rounded-lg"><p class="text-sm text-slate-400">Posted on ${new Date(a.date).toLocaleDateString()}</p><p class="mt-1">${a.text}</p></li>`).join('') : '<p class="text-slate-500">No announcements.</p>'}</ul>`;
+            } catch (e) { contentEl.innerHTML = `<p class="text-red-400">Could not load announcements.</p>`; }
+        };
+
+        // --- EVENT LISTENERS & INITIALIZATION ---
+        const attachSidebarListeners = (userType) => {
+            document.querySelectorAll(`#${userType}Dashboard .sidebar-btn`).forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const sectionId = e.currentTarget.dataset.section;
+                    if (userType === 'teacher') showTeacherSection(sectionId);
+                    if (userType === 'student') showStudentSection(sectionId);
+                    if (userType === 'parent') showParentSection(sectionId);
+                });
+            });
+        };
+
+        document.getElementById('notificationCloseBtn').addEventListener('click', () => hideModal(notificationModal));
+        document.getElementById('reportCloseBtn').addEventListener('click', () => hideModal(reportModal));
+        document.getElementById('editDetailSaveBtn').addEventListener('click', saveStudentDetails);
+        document.getElementById('editDetailCancelBtn').addEventListener('click', () => hideModal(editStudentDetailsModal));
+        document.getElementById('editSaveBtn').addEventListener('click', savePerformance);
+        document.getElementById('editCancelBtn').addEventListener('click', () => hideModal(editPerformanceModal));
+    </script>
+</body>
+</html>
